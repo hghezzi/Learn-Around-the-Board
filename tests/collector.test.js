@@ -34,13 +34,14 @@ function fakeSheet() {
   return sheet;
 }
 
-function loadCollector({ withCache = false } = {}) {
+function loadCollector({ withCache = false, withProps = false } = {}) {
   const sheets = {};
   const store = {};
   const context = {
     SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSheetByName: (n) => sheets[n] || null, insertSheet: (n) => (sheets[n] = fakeSheet()) }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
     ...(withCache ? { CacheService: { getScriptCache: () => ({ get: (k) => store[k] ?? null, put: (k, v) => { store[k] = v; } }) } } : {}),
+    ...(withProps ? { PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => store[`p:${k}`] ?? null, setProperty: (k, v) => { store[`p:${k}`] = v; } }) } } : {}),
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: (text) => ({ setMimeType: () => ({ text }) }) },
   };
   vm.createContext(context);
@@ -137,9 +138,27 @@ describe("results collector (Apps Script)", () => {
     expect(row[header.indexOf("team")]).toBe("'\r=2");
   });
 
+  it("records a game sent twice only once, and the script's own fields win", () => {
+    expect(collector.post(submission({ summary: [{ playerIndex: 0, members: "Ana", course: "FAKE", receivedAt: "x" }] }))).toEqual({ ok: true });
+    expect(collector.post(submission())).toEqual({ ok: true, duplicate: true });
+    const [header, row, extra] = collector.sheets.Summary.cells;
+    expect(extra).toBeUndefined();
+    expect(row[header.indexOf("course")]).toBe("BIOL 101");
+    expect(row[header.indexOf("receivedAt")]).not.toBe("x");
+    expect(collector.sheets.Details.cells).toHaveLength(3);
+  });
+
+  it("caps the rows added per day", () => {
+    const capped = loadCollector({ withProps: true });
+    const big = (i) => submission({ sessionId: `big${i}`, rows: Array.from({ length: 4999 }, () => ({ a: 1 })) });
+    const results = Array.from({ length: 21 }, (_, i) => capped.post(big(i)));
+    expect(results.filter((r) => r.ok)).toHaveLength(20); // 20 x 5,000 rows = the 100,000 daily limit
+    expect(results.at(-1)).toMatchObject({ ok: false, error: expect.stringMatching(/limit for today/) });
+  });
+
   it("limits submissions per minute", () => {
     const limited = loadCollector({ withCache: true });
-    const results = Array.from({ length: 125 }, () => limited.post(submission()));
+    const results = Array.from({ length: 125 }, (_, i) => limited.post(submission({ sessionId: `s${i}` })));
     expect(results.filter((r) => r.ok)).toHaveLength(120);
     expect(results.at(-1)).toMatchObject({ ok: false, error: expect.stringMatching(/busy/) });
   });

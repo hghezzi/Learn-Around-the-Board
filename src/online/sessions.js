@@ -6,7 +6,7 @@
 // A transport for the host:   { listen(onConnection), close() }
 // A transport for a guest:     { connect() -> Promise<conn> }   (rejects with Error, .code "not-found" | "network")
 // A connection (both sides):   { send(obj), onData(fn), onClose(fn), close() }
-import { PROTOCOL_VERSION, readMessage, claimSlot, releaseSlots, slotsOf, checkGuestAction, guestView, makeDeviceToken } from "./protocol.js";
+import { PROTOCOL_VERSION, readMessage, claimSlot, releaseSlots, slotsOf, checkGuestAction, guestView, makeDeviceToken, stepKey } from "./protocol.js";
 
 /**
  * The host's side: who is connected, who plays which player, and what to send.
@@ -22,6 +22,9 @@ export class HostSession {
     this.devices = new Map(); // token -> { conn, online, label }
     this.phase = "LOBBY";
     this.view = null; // latest full (host) view
+    this.stepRev = 0; // numbers each change of turn, dialog or question (see stepKey)
+    this.stepKey = "";
+    this.lastAct = null; // { rev, name } of the last action run, so a double press runs once
     this.boardMsg = null;
     this.lastSent = new Map(); // token -> last view JSON (skip identical sends)
     this.closed = false;
@@ -67,8 +70,12 @@ export class HostSession {
         this.#sendLobby(); this.#changed();
       } else if (msg.t === "act") {
         if (this.phase !== "GAME" || !this.view) return;
+        // A press made on an older screen, or the same button pressed twice, does nothing.
+        if (msg.rev !== this.stepRev) { conn.send({ t: "error", code: "stale", message: "The game moved on before that arrived. Check the screen and try again." }); return; }
+        if (this.lastAct?.rev === msg.rev && this.lastAct.name === msg.name) return;
         const problem = checkGuestAction(msg, this.view, slots);
         if (problem) { conn.send({ t: "error", code: "action", message: problem === "not your turn" ? "It isn't your turn." : "That action wasn't accepted." }); return; }
+        this.lastAct = { rev: msg.rev, name: msg.name };
         this.handlers.onAction?.(slots, msg.name, msg.args); // the app turns tile references back into its tiles
       } else if (msg.t === "survey") {
         if (!slots.length || (msg.phase !== "pre" && msg.phase !== "post")) return;
@@ -113,7 +120,7 @@ export class HostSession {
   }
 
   #sendView(token) {
-    const json = JSON.stringify(guestView(this.view));
+    const json = JSON.stringify({ ...guestView(this.view), stepRev: this.stepRev });
     if (this.lastSent.get(token) === json) return;
     this.lastSent.set(token, json);
     this.#send(token, `{"t":"view","view":${json}}`);
@@ -174,6 +181,8 @@ export class HostSession {
   /** The game state after every change; each guest gets the safe version, once per change. */
   publishView(view) {
     this.view = view;
+    const key = stepKey(view);
+    if (key !== this.stepKey) { this.stepKey = key; this.stepRev++; }
     for (const token of this.devices.keys()) this.#sendView(token);
   }
 

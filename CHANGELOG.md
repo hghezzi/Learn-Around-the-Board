@@ -4,6 +4,12 @@ Notable changes to Learn Around the Board (called Science Around the Board until
 
 ## Unreleased: public release preparation (October 2026)
 
+### Pilot readiness: online guards, collector v3, autosave
+- Online play: `ACTION_STAGES` in `src/online/protocol.js` allows each guest action only in its dialog step (with tile and mode checks); the host numbers each step (`stepRev`) and ignores stale presses and double taps; out-of-range tile ids are refused. `PROTOCOL_VERSION` 3. Chaos targets are re-checked on the host.
+- Collector v3: rate limit counted inside the lock, a daily row cap (`rowsPerDay`), one record per `sessionId` (details are written before the summary row), base fields override submitted ones.
+- Autosave stores the question rows once (`lab-autosave-file-v1`) and the state per save; `SaveNotice` warns when saving fails. `?deck=` downloads with a declared size over 5 MB are refused before download.
+- Plugin manifest has a `version` (1.1.0).
+
 ### Security: results address, shared computers, online codes
 - `readConfig` uses `results_url` only when it is a Google Apps Script Web app (`COLLECTOR_URL` in `src/config.js`); the validators (JS and Python) report any other address as an error. A shared question file can no longer route students' results to another server.
 - The start page names the course a file sends results for and the site a linked file came from; the end screen names the course next to Send.

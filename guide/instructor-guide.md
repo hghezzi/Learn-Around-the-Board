@@ -468,9 +468,11 @@ When a results link or email address is set, names are required before **Send**,
 5. Optionally, add `instructor_email` and `course` rows as well.
 6. Test it: load your file, play a quick solo game and click **Send results to instructor**. Two tabs appear in your Sheet: **Summary** (one row per player, with names, survey scores and rank) and **Details** (every answer and transaction).
 
-If you edit the script later, use **Deploy → Manage deployments → Edit → Version: New version**, so the URL stays the same. Every submission carries a `sessionId`, so if a player sends its results twice you can spot and delete the duplicate.
+If you edit the script later, use **Deploy → Manage deployments → Edit → Version: New version**, so the URL stays the same. Every submission carries a `sessionId`, and a game sent twice is recorded only once.
 
 For safety, the game sends results only to a Google Apps Script Web app; it ignores any other address, so a question file passed around by someone else can't send your students' names and answers to their own server. The start page says when a file sends results (and which course it names), and a file opened from a link shows which site it came from. Share your files and links only through your course page.
+
+Results are what the students' browsers send, so a determined student could alter them: use them for participation and to see what the class understood, not as proof of a score.
 
 *Who has access: Anyone* lets anyone with the link send data to your Sheet, but only you can read it, and the collector accepts only game submissions. If your institution doesn't allow Google services for student data, use the email or download option instead, and ask students to type student numbers or initials rather than full names if your rules require it.
 
@@ -593,6 +595,12 @@ Building a great TSV cartridge takes intentional design, and mastering the role 
 Welcome to the board, and have a great session!
 
 ## What’s new
+
+**October 2026 (update 13): steadier online games and a safer results sheet**
+
+- **Online play ignores out-of-turn and repeated presses.** Each device's button now counts only on the screen it belongs to: a double tap on a slow connection runs once, and a press that arrives after the game has moved on is ignored with a "try again" note. A device can no longer, by accident or on purpose, buy during a rent question, skip rent or start the Rescue Quiz early. All devices need the latest version (they're told to reload if not).
+- **Results sheet script, version 3:** a game sent twice is recorded once, a daily row limit protects the Sheet from floods, and the script's own columns (`receivedAt`, `course`…) can't be overwritten by a submission. To update, paste the [new script](https://hghezzi.github.io/Learn-Around-the-Board/tools/lab-results-collector.gs) over the old one and choose **Deploy → Manage deployments → Edit → Version: New version** (the URL stays the same). The old script keeps working.
+- **Big question files resume reliably.** The autosave stores the question file once and only the game's progress after each turn, and a notice appears if the browser can't save (storage full).
 
 **October 2026 (update 12): safer results and shared computers**
 

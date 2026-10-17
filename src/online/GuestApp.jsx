@@ -101,7 +101,7 @@ export default function GuestApp({ code, onLeave }) {
   const title = [meta?.topic, meta?.module].filter(Boolean).join(" / ");
   const online = useMemo(() => (view ? {
     role: "guest", view, mySlots: mine, clockOffset,
-    send: (name, args) => { if (!send({ t: "act", name, args })) setNotice("Not connected to the host right now. Wait a moment and try again."); },
+    send: (name, args) => { if (!send({ t: "act", name, args, rev: view.stepRev })) setNotice("Not connected to the host right now. Wait a moment and try again."); },
   } : null), [view, mine, clockOffset]);
 
   const banner = status.state === "reconnecting" && (

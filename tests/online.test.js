@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   makeRoomCode, normalizeRoomCode, formatRoomCode, joinLink, readMessage, hideAnswer, publicBoard, guestView,
   canGuestAct, checkGuestAction, encodeArgs, decodeArgs, claimSlot, releaseSlots, slotsOf, lobbyReady, PROTOCOL_VERSION,
-  cleanAnswers, cleanSliders, secureRandom, makeDeviceToken,
+  cleanAnswers, cleanSliders, secureRandom, makeDeviceToken, ACTION_STAGES, GUEST_ACTIONS, stepKey,
 } from "../src/online/protocol.js";
 import { HostSession, GuestSession } from "../src/online/sessions.js";
 import { normalizeQuestion, prepareQuestion } from "../src/questionFormats.js";
@@ -124,7 +124,8 @@ describe("hiding answers from guests", () => {
 });
 
 describe("who may act", () => {
-  const view = (o = {}) => ({ turn: 1, modalOpen: false, modalStage: null, activeCard: null, ...o });
+  const tiles = Array.from({ length: 36 }, (_, i) => [i === 4 ? 1 : i === 5 ? 0 : null, 0, 0]);
+  const view = (o = {}) => ({ turn: 1, modalOpen: false, modalStage: null, activeCard: null, isMoving: false, tiles, ...o });
   it("only the device holding the current player, and never on host-only screens", () => {
     expect(canGuestAct(view(), [1])).toBe(true);
     expect(canGuestAct(view(), [0, 2])).toBe(false);
@@ -139,8 +140,56 @@ describe("who may act", () => {
     expect(checkGuestAction({ name: "roll", args: [] }, view(), [0])).toBe("not your turn");
     expect(checkGuestAction({ name: "answerQuiz", args: [{ evil: 1 }] }, view(), [1])).toBe("bad arguments");
     expect(checkGuestAction({ name: "answerQuiz", args: ["x".repeat(501)] }, view(), [1])).toBe("bad arguments");
-    expect(checkGuestAction({ name: "answerQuiz", args: [[2, 0, 1]] }, view(), [1])).toBeNull();
-    expect(checkGuestAction({ name: "sellAsset", args: [{ $tile: 4 }] }, view(), [1])).toBeNull();
+    expect(checkGuestAction({ name: "answerQuiz", args: [[2, 0, 1]] }, view({ modalOpen: true, modalStage: "QUIZ_START", quizState: { active: true, waiting: false } }), [1])).toBeNull();
+    const liquidation = view({ modalOpen: true, modalStage: "LIQUIDATION", activeCard: { type: "LIQUIDATION" } });
+    expect(checkGuestAction({ name: "sellAsset", args: [{ $tile: 4 }] }, liquidation, [1])).toBeNull();
+    expect(checkGuestAction({ name: "sellAsset", args: [{ $tile: 5 }] }, liquidation, [1])).toBe("not now"); // a rival's tile
+    expect(checkGuestAction({ name: "sellAsset", args: [{ $tile: 99 }] }, liquidation, [1])).toBe("bad arguments");
+  });
+
+  it("accepts an action only in the step its button belongs to", () => {
+    const question = view({ modalOpen: true, modalStage: "QUESTION", activeCard: { type: "QUESTION", data: { id: 7 } } });
+    const rent = view({ modalOpen: true, modalStage: "QUESTION", activeCard: { type: "RENT_DEFENSE", data: { id: 5 } } });
+    const decision = view({ modalOpen: true, modalStage: "DECISION", activeCard: { type: "QUESTION", data: { id: 7 } } });
+    const milestone = view({ modalOpen: true, modalStage: "MILESTONE_INTRO", activeCard: { type: "MILESTONE", data: { id: 9 } } });
+    const ok = (name, v, args = []) => checkGuestAction({ name, args }, v, [1]);
+    // Rescue money only from the Rescue Quiz screen.
+    expect(ok("startRescue", view())).toBe("not now");
+    expect(ok("startRescue", view({ modalOpen: true, modalStage: "GRANT_INTRO", activeCard: { type: "GRANT" } }))).toBeNull();
+    // No buying a rival's tile while its rent question is open, and no skipping the rent.
+    expect(ok("buy", rent)).toBe("not now");
+    expect(ok("passTurn", rent)).toBe("not now");
+    expect(ok("answerRent", rent, [1])).toBeNull();
+    expect(ok("answerProperty", rent, [1])).toBe("not now");
+    expect(ok("answerProperty", question, [1])).toBeNull();
+    expect(ok("buy", decision)).toBeNull();
+    expect(ok("passTurn", decision)).toBeNull();
+    // Rolling and the board buttons only with no dialog open and the pawn still.
+    expect(ok("roll", question)).toBe("not now");
+    expect(ok("roll", view({ isMoving: true }))).toBe("not now");
+    expect(ok("openUpgradeOffer", view(), [{ $tile: 4 }])).toBeNull();
+    expect(ok("openUpgradeOffer", view(), [{ $tile: 5 }])).toBe("not now");
+    // A milestone exam only for the milestone on screen, in its own mode.
+    expect(ok("startQuiz", milestone, [{ $tile: 9 }, "MILESTONE_ACQUIRE"])).toBeNull();
+    expect(ok("startQuiz", milestone, [{ $tile: 4 }, "MILESTONE_ACQUIRE"])).toBe("not now");
+    expect(ok("startQuiz", milestone, [{ $tile: 9 }, "MILESTONE_CHALLENGE"])).toBe("not now");
+    // Quiz: answer, then Next, never the other way round.
+    const quiz = (waiting) => view({ modalOpen: true, modalStage: "QUIZ_START", quizState: { active: true, qIndex: 0, waiting } });
+    expect(ok("answerQuiz", quiz(false), [0])).toBeNull();
+    expect(ok("answerQuiz", quiz(true), [0])).toBe("not now");
+    expect(ok("nextQuestion", quiz(true))).toBeNull();
+    expect(ok("nextQuestion", quiz(false))).toBe("not now");
+    // Chaos: only a rival's tile.
+    const chaos = view({ modalOpen: true, modalStage: "CHAOS_SELECT", activeCard: { type: "CHAOS_SELECT" } });
+    expect(ok("selectChaosTarget", chaos, [{ $tile: 5 }])).toBeNull();
+    expect(ok("selectChaosTarget", chaos, [{ $tile: 4 }])).toBe("not now");
+    expect(ok("selectChaosTarget", chaos, [{ $tile: 6 }])).toBe("not now");
+    // Buying a second token changes the step (money and tokens), so it isn't taken for a double tap.
+    const before = stepKey({ ...chaos, players: [{}, { money: 900, chaosTokens: 1 }] });
+    expect(stepKey({ ...chaos, players: [{}, { money: 650, chaosTokens: 2 }] })).not.toBe(before);
+    expect(stepKey({ ...chaos, players: [{}, { money: 900, chaosTokens: 1 }], logs: ["x"] })).toBe(before);
+    // Every guest action has a step rule.
+    expect(Object.keys(ACTION_STAGES).sort()).toEqual([...GUEST_ACTIONS].sort());
   });
 
   it("sends tiles by reference and gets the host's own tile back", () => {
@@ -214,14 +263,26 @@ describe("host and guest sessions", () => {
     expect(b.last("lobby").mine).toEqual([1]);
 
     host.setPhase("GAME");
-    host.publishView({ turn: 0, modalOpen: false });
+    host.publishView({ turn: 0, modalOpen: false, isMoving: false, tiles: [] });
     await settle(net);
     expect(a.last("view").view.turn).toBe(0);
-    b.g.send({ t: "act", name: "roll", args: [] });
-    a.g.send({ t: "act", name: "roll", args: [] });
+    const rev = a.last("view").view.stepRev;
+    b.g.send({ t: "act", name: "roll", args: [], rev });
+    a.g.send({ t: "act", name: "roll", args: [], rev });
+    a.g.send({ t: "act", name: "roll", args: [], rev }); // a double tap runs once
     await settle(net);
     expect(actions).toEqual([{ slots: [0], name: "roll", args: [] }]);
     expect(b.last("error").message).toMatch(/isn't your turn/);
+    // A press made on an older screen is refused once the game has moved on.
+    host.publishView({ turn: 0, modalOpen: true, modalStage: "MSG", activeCard: { type: "MSG" }, isMoving: false, tiles: [] });
+    await settle(net);
+    expect(a.last("view").view.stepRev).toBe(rev + 1);
+    a.g.send({ t: "act", name: "passTurn", args: [], rev });
+    await settle(net);
+    expect(a.last("error").code).toBe("stale");
+    a.g.send({ t: "act", name: "passTurn", args: [], rev: rev + 1 });
+    await settle(net);
+    expect(actions.map((x) => x.name)).toEqual(["roll", "passTurn"]);
   });
 
   it("sends each change once, and gives a reconnecting device its player and state back", async () => {
