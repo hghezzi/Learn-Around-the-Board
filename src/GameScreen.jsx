@@ -767,6 +767,8 @@ export default function GameScreen({
 
   const handleSelectChaosTarget = act('selectChaosTarget', (tile) => {
     if (activePlayer().chaosTokens <= 0) { warn('No chaos tokens available.'); return; }
+    // Only a rival's tile outside a complete set (the list the dialog shows).
+    if (!chaosTargets(boardRef.current, activePlayer().id).some((t) => t.id === tile?.id)) return;
     // Duel on the target tile's own questions (fallback: any board question).
     const pool = tile.questions?.length ? tile.questions : allBoardQuestions();
     if (pool.length === 0) { warn('This question file has no questions for a Chaos challenge.'); return; }

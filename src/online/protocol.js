@@ -8,7 +8,7 @@
 // carry their question lists.
 
 /** Bump when the messages change: devices on different versions are told to reload. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Largest message accepted (characters of JSON). A view with an image-free question is ~10 kB. */
 export const MAX_MESSAGE_CHARS = 200_000;
@@ -177,12 +177,64 @@ export function canGuestAct(view, slots) {
   return true;
 }
 
+// The step of the game each action belongs to, read from the host's view. A guest's
+// button only exists in that step, so anything else is a stale press or a forged one.
+const card = (v) => v.activeCard?.type;
+const tileOf = (v, a) => (a && Number.isInteger(a.$tile) ? v.tiles?.[a.$tile] : null); // [owner, level, paid]
+const onBoard = (v) => !v.modalOpen && !v.isMoving;
+const quizOpen = (v) => (v.modalStage === "QUIZ_START" || v.modalStage === "GRANT_QUIZ") && v.quizState?.active;
+const ENDS_TURN = new Set(["DECISION", "MSG", "MISHAP", "FEEDBACK_INCORRECT", "MILESTONE_SUCCESS", "MILESTONE_FAIL", "GRANT_RESULT"]);
+export const ACTION_STAGES = {
+  roll: onBoard,
+  openChaosSelect: onBoard,
+  openUpgradeOffer: (v, [t]) => onBoard(v) && tileOf(v, t)?.[0] === v.turn,
+  closeDialog: (v) => v.modalOpen && (card(v) === "UPGRADE_OFFER" || v.modalStage === "CHAOS_SELECT"),
+  upgrade: (v) => v.modalOpen && card(v) === "UPGRADE_OFFER",
+  buyChaosToken: (v) => v.modalOpen && v.modalStage === "CHAOS_SELECT",
+  selectChaosTarget: (v, [t]) => v.modalOpen && v.modalStage === "CHAOS_SELECT" && card(v) === "CHAOS_SELECT"
+    && tileOf(v, t)?.[0] != null && tileOf(v, t)[0] !== v.turn,
+  answerChaos: (v) => v.modalOpen && v.modalStage === "CHAOS_QUESTION" && card(v) === "CHAOS_CHALLENGE",
+  answerProperty: (v) => v.modalOpen && v.modalStage === "QUESTION" && card(v) === "QUESTION",
+  answerRent: (v) => v.modalOpen && v.modalStage === "QUESTION" && card(v) === "RENT_DEFENSE",
+  answerOwnTile: (v) => v.modalOpen && v.modalStage === "QUESTION" && card(v) === "OWN_TILE",
+  buy: (v) => v.modalOpen && v.modalStage === "DECISION" && card(v) === "QUESTION",
+  passTurn: (v) => v.modalOpen && ENDS_TURN.has(v.modalStage),
+  startQuiz: (v, [t, mode]) => v.modalOpen && t?.$tile === v.activeCard?.data?.id && (
+    (v.modalStage === "MILESTONE_INTRO" && card(v) === "MILESTONE" && mode === "MILESTONE_ACQUIRE")
+    || (v.modalStage === "MILESTONE_CHALLENGE_INTRO" && card(v) === "MILESTONE_CHALLENGE" && mode === "MILESTONE_CHALLENGE")),
+  declineMilestone: (v) => v.modalOpen && v.modalStage === "MILESTONE_INTRO",
+  payMilestoneFee: (v) => v.modalOpen && v.modalStage === "MILESTONE_CHALLENGE_INTRO",
+  answerQuiz: (v) => v.modalOpen && quizOpen(v) && !v.quizState.waiting,
+  nextQuestion: (v) => v.modalOpen && quizOpen(v) && Boolean(v.quizState.waiting),
+  startRescue: (v) => v.modalOpen && v.modalStage === "GRANT_INTRO" && card(v) === "GRANT",
+  sellAsset: (v, [t]) => v.modalOpen && v.modalStage === "LIQUIDATION" && card(v) === "LIQUIDATION" && tileOf(v, t)?.[0] === v.turn,
+  continueAfterElimination: (v) => v.modalOpen && v.modalStage === "ELIMINATED" && card(v) === "ELIMINATED",
+};
+
+/**
+ * What decides whether a guest's press still applies: the turn, the dialog and the
+ * question on screen. The host numbers each change of this (`stepRev`); a press made
+ * on an older step, or a second press of the same button, is ignored.
+ */
+export function stepKey(view) {
+  if (!view) return "";
+  const q = view.quizState || {};
+  // Money and tokens too: buying a second chaos token or selling a second tile is a new press, not a repeat.
+  const p = view.players?.[view.turn];
+  return JSON.stringify([view.turn, view.isMoving, view.modalOpen, view.modalStage, view.activeCard?.type ?? null,
+    view.activeCard?.data?.id ?? null, q.active ? q.qIndex : null, q.active ? Boolean(q.waiting) : null, view.totalTurns,
+    p?.money ?? null, p?.chaosTokens ?? null]);
+}
+
 /** Check an action sent by a guest before the host runs it. */
 export function checkGuestAction(msg, view, slots) {
   if (!msg || typeof msg.name !== "string" || !GUEST_ACTIONS.has(msg.name)) return "unknown action";
   if (!Array.isArray(msg.args) || msg.args.length > 3) return "bad arguments";
   if (!msg.args.every(isPlainArg)) return "bad arguments";
+  const tiles = view?.tiles?.length ?? 0;
+  if (msg.args.some((a) => a && typeof a === "object" && !Array.isArray(a) && !(a.$tile >= 0 && a.$tile < tiles))) return "bad arguments";
   if (!canGuestAct(view, slots)) return "not your turn";
+  if (!ACTION_STAGES[msg.name]?.(view, msg.args)) return "not now";
   return null;
 }
 

@@ -513,6 +513,7 @@ function HostApp({ onJoin }) {
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(String(res.status));
+      if (Number(res.headers.get("content-length")) > MAX_FILE_BYTES) { setLoadingError(TOO_BIG); return; }
       const text = await res.text();
       setDeckHost(DECK_SHORTCUTS[String(input).trim().toLowerCase()] ? "" : new URL(url, window.location.href).hostname);
       acceptQuestionText(text);

@@ -12,14 +12,16 @@
  *
  * Each submission adds one row per team to the "Summary" tab (names or IDs, survey scores, rank)
  * and every answer, survey response and transaction to the "Details" tab. Both tabs are created
- * automatically. Every row carries a sessionId, so a result sent twice is easy to spot.
+ * automatically. Every row carries a sessionId; a game sent twice is only recorded once.
  * Visiting the URL in a browser only shows a short "running" message.
  *
  * Safety and privacy: "Anyone" lets anyone with the link send a submission, but only you can read
  * the Sheet. The script accepts only Learn Around the Board submissions of a sensible size, keeps
  * column names simple, shortens very long text, stores typed text as plain text (never as formulas),
- * limits how many submissions it takes per minute and sends nothing anywhere else.
- * Version 2 (October 2026).
+ * limits how many submissions it takes per minute and how many rows per day, and sends nothing
+ * anywhere else. Results are what the students' browsers send: use them for participation and
+ * learning insight, not as proof of a score.
+ * Version 3 (October 2026).
  *
  * After editing this script, use Deploy → Manage deployments → Edit → Version: New version,
  * so the URL stays the same.
@@ -34,6 +36,7 @@ const LIMITS = {
   columns: 80,          // columns per sheet
   cellChars: 2000,      // longer text is shortened
   perMinute: 120,       // submissions per minute, for the whole Sheet
+  rowsPerDay: 100000,   // rows per day across both tabs (a Sheet holds 10 million cells)
 };
 const KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
@@ -49,13 +52,21 @@ function doPost(e) {
     const summary = Array.isArray(data.summary) ? data.summary : [];
     const rows = Array.isArray(data.rows) ? data.rows : [];
     if (summary.length > LIMITS.summaryRows || rows.length > LIMITS.detailRows) throw new Error("The submission has too many rows.");
-    if (!withinRate_()) throw new Error("The results sheet is busy. Please try again in a minute.");
     locked = lock.tryLock(30000);
     if (!locked) throw new Error("The results sheet is busy. Please try again in a minute.");
+    // Counted inside the lock, so simultaneous submissions can't slip past the limits.
+    if (!withinRate_()) throw new Error("The results sheet is busy. Please try again in a minute.");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const base = { receivedAt: new Date(), sessionId: text_(data.sessionId), course: text_(data.course), topic: text_(data.topic), module: text_(data.module) };
-    appendObjects_(ss, SUMMARY_SHEET, summary.filter(isPlainObject_).map((r) => Object.assign({}, base, r)));
-    appendObjects_(ss, DETAIL_SHEET, rows.filter(isPlainObject_).map((r) => Object.assign({}, base, r)));
+    const sessionId = text_(data.sessionId);
+    if (sessionId && alreadyReceived_(ss, sessionId)) return json_({ ok: true, duplicate: true });
+    const summaryRows = summary.filter(isPlainObject_);
+    const detailRows = rows.filter(isPlainObject_);
+    if (!withinDailyRows_(summaryRows.length + detailRows.length)) throw new Error("The results sheet has reached its limit for today. Please download your results and submit the file instead.");
+    // The script's own fields always win over fields in the submission.
+    const base = { receivedAt: new Date(), sessionId: sessionId, course: text_(data.course), topic: text_(data.topic), module: text_(data.module) };
+    // Details first: the Summary row marks a complete submission (see alreadyReceived_).
+    appendObjects_(ss, DETAIL_SHEET, detailRows.map((r) => Object.assign({}, base, r, base)));
+    appendObjects_(ss, SUMMARY_SHEET, summaryRows.map((r) => Object.assign({}, base, r, base)));
     return json_({ ok: true });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message ? err.message : err).slice(0, 300) });
@@ -107,6 +118,30 @@ function withinRate_() {
   const count = Number(cache.get(key) || 0) + 1;
   cache.put(key, String(count), 120);
   return count <= LIMITS.perMinute;
+}
+
+// A game already in the Summary tab (the same sessionId) is not added again.
+function alreadyReceived_(ss, sessionId) {
+  const sheet = ss.getSheetByName(SUMMARY_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return false;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const col = headers.indexOf("sessionId") + 1;
+  if (!col) return false;
+  const ids = sheet.getRange(2, col, sheet.getLastRow() - 1, 1).getValues();
+  return ids.some((r) => String(r[0]) === sessionId);
+}
+
+// Rows written today, kept in the script's properties (only this script can see them).
+function withinDailyRows_(adding) {
+  if (typeof PropertiesService === "undefined") return true;
+  const props = PropertiesService.getScriptProperties();
+  const today = new Date().toISOString().slice(0, 10);
+  let used = { day: today, rows: 0 };
+  try { const saved = JSON.parse(props.getProperty("lab-daily") || "null"); if (saved && saved.day === today) used = saved; } catch (e) { /* start over */ }
+  if (used.rows + adding > LIMITS.rowsPerDay) return false;
+  used.rows += adding;
+  props.setProperty("lab-daily", JSON.stringify(used));
+  return true;
 }
 
 function json_(obj) {
