@@ -125,7 +125,7 @@ Optional rows that set up how results reach the instructor. Put the setting name
 
 | `id` | value (`question` column) | effect |
 |---|---|---|
-| `results_url` | the collector's Web app URL, `https://script.google.com/macros/s/…/exec` | the end screen shows **Send results to instructor**, which adds each player's results to the instructor's Google Sheet. A Google Form or Sheet link, or a test `/dev` URL, never works (validator ERROR) |
+| `results_url` | the collector's Web app URL, `https://script.google.com/macros/s/…/exec` | the end screen shows **Send results to instructor**, which adds each player's results to the instructor's Google Sheet. A Google Form or Sheet link, a test `/dev` URL or any other address never works: the game ignores anything that isn't an Apps Script `/exec` link (validator ERROR) |
 | `instructor_email` | an email address | the end screen shows **Email results to instructor**: it downloads the results file and opens a pre-addressed email; students attach the file |
 | `course` | e.g. `BIOL 301 – Week 5` | labels the results (Sheet rows and the email subject) |
 | `ask_names` | `yes` or `no` | `yes`: the end screen marks the "names or student IDs" boxes as required and keeps **Send**, **Email** and **Download** disabled until every player's box is filled, so it works with download-only results too. `no`: the boxes are optional. Default: `yes` when `results_url` or `instructor_email` is set. The game can't ask for student numbers rather than names; tell students which to type |

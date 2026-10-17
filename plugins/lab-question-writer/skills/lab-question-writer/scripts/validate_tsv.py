@@ -158,7 +158,8 @@ def explicit_amount(text):
 
 # Links instructors often paste instead of the collector's Web app URL; they can never work.
 NOT_A_COLLECTOR = re.compile(r"^https://(?:docs\.google\.com/(?:forms|spreadsheets)/|forms\.gle/|script\.google\.com/.*/dev(?:[?#/]|$))", re.I)
-COLLECTOR = re.compile(r"^https://script\.google\.com/(?:a/macros/[^/]+|macros)/s/[^/]+/exec(?:[?#]|$)", re.I)
+# The only results address the game uses (mirror of COLLECTOR_URL in src/config.js).
+COLLECTOR = re.compile(r"^https://script\.google\.com/(?:a/macros/[^/]+|macros)/s/[^/?#]+/exec(?:[?#]|$)", re.I)
 
 
 def check_config(r, label, errors, warnings):
@@ -177,7 +178,7 @@ def check_config(r, label, errors, warnings):
         elif NOT_A_COLLECTOR.match(value):
             errors.append('Config "results_url" is a Google Form, Google Sheet or test (/dev) link, not the collector\'s Web app URL (https://script.google.com/macros/s/…/exec), so "Send results to instructor" would fail. Follow the collector setup and copy the Web app URL that ends in /exec.')
         elif not COLLECTOR.match(value):
-            warnings.append('Config "results_url" doesn\'t look like a Google Apps Script Web app link (https://script.google.com/macros/s/…/exec). It will still be used.')
+            errors.append('Config "results_url" isn\'t a Google Apps Script Web app link (https://script.google.com/macros/s/…/exec). The game sends results only to the LAB collector and ignores any other address, so "Send results to instructor" won\'t appear.')
     if key == "instructor_email" and not EMAIL_RE.match(value):
         errors.append('Config "instructor_email" is not a valid email address.')
     if key == "ask_names" and value.lower() not in ("yes", "no", "y", "n", "true", "false", "1", "0"):
@@ -612,7 +613,7 @@ def read_config(rows):
         key, value = (r.get("id") or "").strip().lower(), (r.get("question") or "").strip()
         if key and value:
             raw[key] = value
-    url = raw.get("results_url", "") if re.match(r"^https://", raw.get("results_url", ""), re.I) else ""
+    url = raw.get("results_url", "") if COLLECTOR.match(raw.get("results_url", "")) else ""
     email = raw.get("instructor_email", "") if EMAIL_RE.match(raw.get("instructor_email", "")) else ""
     ask = raw.get("ask_names", "").lower()
     ask_names = ask in ("yes", "y", "true", "1") if ask else bool(url or email)
@@ -624,8 +625,7 @@ def describe_delivery(rows):
     cfg = read_config(rows)
     to = []
     if cfg["resultsUrl"]:
-        url = cfg["resultsUrl"]
-        to.append(f"the results collector at {url}" if COLLECTOR.match(url) else f"the web address {url} (not a recognised Apps Script collector)")
+        to.append(f"the results collector at {cfg['resultsUrl']}")
     if cfg["instructorEmail"]:
         to.append(f"an email to {cfg['instructorEmail']} (students attach the file)")
     where = " and ".join(to) if to else "nowhere; students only download the results file (CSV)"

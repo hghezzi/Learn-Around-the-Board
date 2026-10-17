@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   makeRoomCode, normalizeRoomCode, formatRoomCode, joinLink, readMessage, hideAnswer, publicBoard, guestView,
   canGuestAct, checkGuestAction, encodeArgs, decodeArgs, claimSlot, releaseSlots, slotsOf, lobbyReady, PROTOCOL_VERSION,
-  cleanAnswers, cleanSliders,
+  cleanAnswers, cleanSliders, secureRandom, makeDeviceToken,
 } from "../src/online/protocol.js";
 import { HostSession, GuestSession } from "../src/online/sessions.js";
 import { normalizeQuestion, prepareQuestion } from "../src/questionFormats.js";
@@ -55,6 +55,14 @@ describe("room codes", () => {
     expect(normalizeRoomCode("ABC")).toBe("");
     expect(normalizeRoomCode("ABCD0O")).toBe(""); // 0 and O are never used
     expect(normalizeRoomCode(null)).toBe("");
+  });
+
+  it("codes and device tokens come from the browser's cryptographic random generator", () => {
+    const xs = Array.from({ length: 200 }, secureRandom);
+    expect(xs.every((x) => x >= 0 && x < 1)).toBe(true);
+    expect(new Set(xs).size).toBe(200);
+    expect(makeDeviceToken()).toMatch(/^[0-9a-z]{16}$/);
+    expect(new Set(Array.from({ length: 100 }, () => makeRoomCode())).size).toBeGreaterThan(95);
   });
 
   it("make a join link without the page's other parameters", () => {

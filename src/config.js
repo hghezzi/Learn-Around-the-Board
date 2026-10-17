@@ -7,6 +7,10 @@ export const CONFIG_KEYS = ["results_url", "instructor_email", "course", "ask_na
 // mailto: link (?, &, #, %, commas, semicolons...).
 export const EMAIL_PATTERN = /^[^@\s?&#%,;:<>"'()[\]\\/]+@[^@\s?&#%,;:<>"'()[\]\\/]+\.[^@\s?&#%,;:<>"'()[\]\\/]+$/;
 
+// Results go only to a Google Apps Script Web app (the LAB collector). Any other address is
+// ignored, so a shared question file can't send students' names and answers to another server.
+export const COLLECTOR_URL = /^https:\/\/script\.google\.com\/(?:a\/macros\/[^/]+|macros)\/s\/[^/?#]+\/exec(?:[?#]|$)/i;
+
 export function readConfig(rows) {
   const raw = {};
   (rows || []).forEach((r) => {
@@ -15,7 +19,7 @@ export function readConfig(rows) {
     const value = (r.question || "").trim();
     if (key && value) raw[key] = value;
   });
-  const resultsUrl = /^https:\/\//i.test(raw.results_url || "") ? raw.results_url : "";
+  const resultsUrl = COLLECTOR_URL.test(raw.results_url || "") ? raw.results_url : "";
   const instructorEmail = EMAIL_PATTERN.test(raw.instructor_email || "") ? raw.instructor_email : "";
   const ask = (raw.ask_names || "").toLowerCase();
   const askNames = ask ? ["yes", "y", "true", "1"].includes(ask) : Boolean(resultsUrl || instructorEmail);

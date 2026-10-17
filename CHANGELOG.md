@@ -4,6 +4,12 @@ Notable changes to Learn Around the Board (called Science Around the Board until
 
 ## Unreleased: public release preparation (October 2026)
 
+### Security: results address, shared computers, online codes
+- `readConfig` uses `results_url` only when it is a Google Apps Script Web app (`COLLECTOR_URL` in `src/config.js`); the validators (JS and Python) report any other address as an error. A shared question file can no longer route students' results to another server.
+- The start page names the course a file sends results for and the site a linked file came from; the end screen names the course next to Send.
+- Sending or downloading results deletes the autosaved game and stops saving it (shared computers).
+- Room codes and device tokens use `crypto.getRandomValues` (`secureRandom` in `src/online/protocol.js`).
+
 ### New name: Learn Around the Board (LAB)
 - The game, guides, skill (`lab-question-writer`), plugin marketplace (`lab`), files (`LAB_*_Guide.pdf`, `lab_results_*.csv`, `lab-results-collector.gs`, `examples/16S_QIIME2_demo.tsv`) and the site address (`/Learn-Around-the-Board/`) use the new name. Old `.lock` files (`SAB-LOCK-v2`) still open, and the results collector accepts submissions from older games.
 

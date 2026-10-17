@@ -150,9 +150,9 @@ describe("config rows and format counts", () => {
     expect(w).toMatch(/"ask_names" should be yes or no/);
   });
 
-  it("warns when the results link isn't an Apps Script web app", () => {
-    const w = withConfig(cfg("results_url", "https://example.com/collect")).warnings.join("\n");
-    expect(w).toMatch(/doesn't look like a Google Apps Script/);
+  it("errors when the results link isn't an Apps Script web app (the game ignores it)", () => {
+    const e = withConfig(cfg("results_url", "https://example.com/collect")).errors.join("\n");
+    expect(e).toMatch(/isn't a Google Apps Script Web app link.*ignores any other address/);
   });
 
   it("counts questions per answer format", () => {
@@ -178,7 +178,7 @@ describe("results delivery line", () => {
     expect(delivery(["results_url", "https://script.google.com/macros/s/X/exec"], ["ask_names", "no"], ["course", "BIOL 1"]))
       .toBe("Results are sent to: the results collector at https://script.google.com/macros/s/X/exec. Name/ID field: optional. Course label: BIOL 1.");
     expect(delivery(["results_url", "https://script.google.com/a/macros/uni.edu/s/X/exec"])).toMatch(/^Results are sent to: the results collector at /);
-    expect(delivery(["results_url", "https://example.com/collect"])).toMatch(/^Results are sent to: the web address https:\/\/example\.com\/collect \(not a recognised Apps Script collector\)/);
+    expect(delivery(["results_url", "https://example.com/collect"])).toMatch(/^Results are sent to: nowhere; students only download/);
   });
 
   it.each([
@@ -189,7 +189,7 @@ describe("results delivery line", () => {
   ])("errors on a Form, Sheet or test link instead of the collector: %s", (url) => {
     const r = validate(makeTsv({ extra: cfg(["results_url", url]) }));
     expect(r.errors.join("\n")).toMatch(/is a Google Form, Google Sheet or test \(\/dev\) link, not the collector's Web app URL/);
-    expect(r.delivery).toMatch(/not a recognised Apps Script collector/);
+    expect(r.delivery).toMatch(/^Results are sent to: nowhere/);
   });
 
   it.each([

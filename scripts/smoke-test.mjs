@@ -220,7 +220,7 @@ async function resultsScenario() {
     await route.fulfill({ status: 200, contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, body: '{"ok":true}' });
   });
   await openDemo(page);
-  if (!(await page.getByText(/Results will be sent to your instructor/).count())) fail("results: start page doesn't mention sending results");
+  if (!(await page.getByText(/sends your results to the instructor of Smoke Test 101/).count())) fail("results: start page doesn't mention sending results");
   await setupGame(page, 1);
   await doSurvey(page, 1, "results pre");
   await gameStarted(page);
@@ -229,8 +229,11 @@ async function resultsScenario() {
   if (await send.isEnabled()) fail("results: Send should be disabled until names are typed");
   if (await page.getByRole("button", { name: /Download results/ }).isEnabled()) fail("results: Download should be disabled until names are typed");
   await page.getByLabel(/names or student IDs/).first().fill("Test Student");
+  if (!(await page.evaluate(() => localStorage.getItem("lab-autosave-v1")))) fail("results: the finished game should be saved until results are delivered");
   await send.click();
   await page.getByText(/^Sent!/).waitFor({ timeout: 10000 });
+  // Shared computers: once results are sent, the saved game (with its answers) is deleted.
+  if (await page.evaluate(() => localStorage.getItem("lab-autosave-v1"))) fail("results: the saved game should be deleted after sending");
   if (!posted) fail("results: nothing was posted");
   else {
     if (posted.app !== "science-around-the-board" || posted.course !== "Smoke Test 101") fail("results: payload is missing the app or course");

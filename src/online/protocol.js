@@ -18,7 +18,14 @@ const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const ROOM_CODE_LENGTH = 6;
 const PEER_PREFIX = "lab-room-";
 
-export function makeRoomCode(rng = Math.random) {
+// Cryptographically random number in [0, 1): codes and tokens must not be predictable.
+export function secureRandom() {
+  const a = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(a);
+  return a[0] / 2 ** 32;
+}
+
+export function makeRoomCode(rng = secureRandom) {
   let code = "";
   for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += CODE_ALPHABET[Math.floor(rng() * CODE_ALPHABET.length)];
   return code;
@@ -37,7 +44,7 @@ export const formatRoomCode = (code) => (code ? `${code.slice(0, 3)}-${code.slic
 export const hostPeerId = (code) => `${PEER_PREFIX}${code}`;
 
 /** Random id a guest device keeps for this room, so a refresh gets its player back. */
-export function makeDeviceToken(rng = Math.random) {
+export function makeDeviceToken(rng = secureRandom) {
   return Array.from({ length: 16 }, () => Math.floor(rng() * 36).toString(36)).join("");
 }
 
