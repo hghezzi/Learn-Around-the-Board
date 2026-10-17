@@ -146,7 +146,7 @@ The buttons you see depend on how your instructor set up the game. If **Send** f
 
 ## If something goes wrong
 
-- **You refreshed or closed the page by accident.** Open the game again in the same browser: the start page offers **Resume your game?** Click **Resume**. A refresh in the middle of a turn takes you back to the start of that turn. Uploaded images have to be selected again. The saved game stays on this computer for 12 hours.
+- **You refreshed or closed the page by accident.** Open the game again in the same browser: the start page offers **Resume your game?** Click **Resume**. A refresh in the middle of a turn takes you back to the start of that turn. Uploaded images have to be selected again. The saved game stays on this computer for 12 hours, or until you send or download your results.
 - **"That password didn't work."** Check capital letters and spaces, or ask your instructor.
 - **A picture is missing.** The question still works without it. If you have the image files, go back to the start page and use **Optional: upload images**.
 - **The board looks squashed.** Make the browser window wider, or zoom out (Ctrl and − on Windows, ⌘ and − on a Mac).

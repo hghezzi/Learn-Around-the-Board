@@ -414,8 +414,8 @@
 </thead>
 <tbody><tr>
 <td align="left"><code>results_url</code></td>
-<td align="left">the Web app URL of your results collector</td>
-<td align="left">adds <strong>Send results to instructor</strong> to the end screen (see <a href="#collecting-results">Collecting results</a>)</td>
+<td align="left">the Web app URL of your results collector (<code>https://script.google.com/macros/s/…/exec</code>)</td>
+<td align="left">adds <strong>Send results to instructor</strong> to the end screen (see <a href="#collecting-results">Collecting results</a>). Any other address is ignored</td>
 </tr>
 <tr>
 <td align="left"><code>instructor_email</code></td>
@@ -735,6 +735,7 @@
 <li>Test it: load your file, play a quick solo game and click <strong>Send results to instructor</strong>. Two tabs appear in your Sheet: <strong>Summary</strong> (one row per player, with names, survey scores and rank) and <strong>Details</strong> (every answer and transaction).</li>
 </ol>
 <p>If you edit the script later, use <strong>Deploy → Manage deployments → Edit → Version: New version</strong>, so the URL stays the same. Every submission carries a <code>sessionId</code>, so if a player sends its results twice you can spot and delete the duplicate.</p>
+<p>For safety, the game sends results only to a Google Apps Script Web app; it ignores any other address, so a question file passed around by someone else can&#39;t send your students&#39; names and answers to their own server. The start page says when a file sends results (and which course it names), and a file opened from a link shows which site it came from. Share your files and links only through your course page.</p>
 <p><em>Who has access: Anyone</em> lets anyone with the link send data to your Sheet, but only you can read it, and the collector accepts only game submissions. If your institution doesn&#39;t allow Google services for student data, use the email or download option instead, and ask students to type student numbers or initials rather than full names if your rules require it.</p>
 <h3 id="what-the-results-contain">What the results contain</h3>
 <p>Learn Around the Board collects feedback on student performance in a Comma-Separated Values (CSV) file named after the topic, module, date and time, for example <code>lab_results_16s_qiime2_2026-10-06_1430.csv</code>; the <strong>Details</strong> tab of the results Sheet holds the same rows. It tracks every answer and transaction during the game, plus the pre- and post-game survey results. Instructors can open it in Excel or Google Sheets, or analyse it with R or Python, to see which questions were missed most often and how confidence and knowledge changed.</p>
@@ -787,7 +788,7 @@
 <li><strong>Calibration:</strong> compare the confidence sliders with the survey scores, before and after.</li>
 </ul>
 <p><strong>Grading.</strong> I recommend grading participation (a complete results file, or a player appearing in your Sheet) or the growth from pre- to post-game survey, rather than the final rank: dice decide part of every game, and low stakes are what make students willing to take risks.</p>
-<p>The game saves the session in the browser as it goes, so an accidental refresh offers <strong>Resume your game?</strong> on the start page. Students should still send or download their results before closing the tab: the saved copy stays on that computer and expires after 12 hours.</p>
+<p>The game saves the session in the browser as it goes, so an accidental refresh offers <strong>Resume your game?</strong> on the start page. Students should still send or download their results before closing the tab: the saved copy stays on that computer until then, and expires after 12 hours. Sending or downloading the results deletes it, so the next student on a shared computer doesn&#39;t see the previous game.</p>
 <h2 id="designing-a-session-based-on-learn-around-the-board">Designing a session based on ‘Learn Around the Board’</h2>
 <p>Designing a successful Learn Around the Board session requires intentionality, ensuring that the activity and the questions align with the learning objectives of the class or course. Here is a framework to design your session and enhance its pedagogical impact.</p>
 <h3 id="backward-design-aligning-with-learning-outcomes-los">Backward design: aligning with Learning Outcomes (LOs)</h3>
@@ -865,7 +866,7 @@
 <li><strong>A device can&#39;t join an online game:</strong> check the code, and that the host&#39;s game page is still open. <em>&quot;No game with this code is open&quot;</em> means the room isn&#39;t open (or was closed); <em>&quot;Couldn&#39;t connect&quot;</em> usually means the network blocks live connections: try a phone hotspot, or play on one computer. If a device says it has a different version, reload that page.</li>
 </ol>
 <h2 id="privacy-and-student-data">Privacy and student data</h2>
-<p>The game runs entirely in the students’ browsers. There is no account and no game server. In an online game, devices find each other through the free PeerJS connection service, which sees the devices&#39; internet addresses and the room code but not the game; the game itself then goes directly from device to device, encrypted. Question files, answers and surveys stay on the students’ computers; results leave them only when students click <strong>Send results to instructor</strong> (they go straight to your own Google Sheet) or submit the results file themselves. The autosaved copy of a session also stays in the browser, and expires after 12 hours. Usage analytics (Google Analytics, with cookies: visits, device type, country) are loaded only if a visitor clicks <strong>Allow analytics</strong> on the start page. If your institution has rules about student data, ask students to choose <strong>No thanks</strong>; the game works the same either way. See the <a href="https://hghezzi.github.io/Learn-Around-the-Board/privacy.html" target="_blank" rel="noopener">privacy notice</a>.</p>
+<p>The game runs entirely in the students’ browsers. There is no account and no game server. In an online game, devices find each other through the free PeerJS connection service, which sees the devices&#39; internet addresses and the room code but not the game; the game itself then goes directly from device to device, encrypted. Question files, answers and surveys stay on the students’ computers; results leave them only when students click <strong>Send results to instructor</strong> (they go straight to your own Google Sheet) or submit the results file themselves. The autosaved copy of a session also stays in the browser until results are sent or downloaded, and expires after 12 hours. Usage analytics (Google Analytics, with cookies: visits, device type, country) are loaded only if a visitor clicks <strong>Allow analytics</strong> on the start page. If your institution has rules about student data, ask students to choose <strong>No thanks</strong>; the game works the same either way. See the <a href="https://hghezzi.github.io/Learn-Around-the-Board/privacy.html" target="_blank" rel="noopener">privacy notice</a>.</p>
 <h2 id="license-and-reuse">License and reuse</h2>
 <p>Learn Around the Board is free for teaching, learning and research, and that won&#39;t change. Universities, colleges, schools and other public or charitable institutions can use it, adapt it and even host their own copy, whatever their funding. The code is under the <a href="https://github.com/hghezzi/Learn-Around-the-Board/blob/main/LICENSES/PolyForm-Noncommercial-1.0.0.md" target="_blank" rel="noopener">PolyForm Noncommercial License 1.0.0</a>, and this guide, the example question files and the images are under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>: please credit me and share adapted guides or question files under the same terms.</p>
 <ul>
@@ -881,6 +882,13 @@
 <p>Building a great TSV cartridge takes intentional design, and mastering the role of the game master takes practice. But the payoff, watching your students actively conceptualize complex material rather than passively memorizing it, is entirely worth the effort.</p>
 <p>Welcome to the board, and have a great session!</p>
 <h2 id="whats-new">What’s new</h2>
+<p><strong>October 2026 (update 12): safer results and shared computers</strong></p>
+<ul>
+<li><strong>Results go only to a results Sheet collector.</strong> A <code>results_url</code> that isn&#39;t a Google Apps Script Web app (<code>https://script.google.com/macros/s/…/exec</code>) is now ignored by the game and shown as a red item by the file check. Before, any web address was used, so a question file shared by someone else could send students&#39; names and answers to their own server. The collector links from the setup steps keep working unchanged.</li>
+<li><strong>Students see where their results go.</strong> The start page names the course a file sends results for, and says which site a file opened from a link came from. The end screen names the course next to <strong>Send results to instructor</strong>.</li>
+<li><strong>Shared computers:</strong> sending or downloading the results deletes the saved copy of the game, so the next student can&#39;t resume or see it.</li>
+<li><strong>Online play:</strong> room codes and device tokens now use the browser&#39;s cryptographic random generator.</li>
+</ul>
 <p><strong>October 2026 (update 11): a new name, Learn Around the Board (LAB)</strong></p>
 <ul>
 <li><strong>Science Around the Board is now Learn Around the Board (LAB),</strong> to reflect what it has become: a review game for any subject, not only the sciences. The rules, your question files and your results are unchanged.</li>

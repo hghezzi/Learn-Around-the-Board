@@ -179,7 +179,7 @@ Rows with `type` = `config` are not questions: they set up how results reach you
 
 | `id` | Value (in the `question` column) | Effect |
 | :--- | :--- | :--- |
-| `results_url` | the Web app URL of your results collector | adds **Send results to instructor** to the end screen (see [Collecting results](#collecting-results)) |
+| `results_url` | the Web app URL of your results collector (`https://script.google.com/macros/s/…/exec`) | adds **Send results to instructor** to the end screen (see [Collecting results](#collecting-results)). Any other address is ignored |
 | `instructor_email` | your email address | adds **Email results to instructor** |
 | `course` | e.g. BIOL 301 – Week 5 | labels the results in your Sheet and in the email |
 | `ask_names` | `yes` or `no` | whether names or student IDs must be typed before **Send**, **Email** or **Download** (the boxes are always shown); the default is yes when results are sent or emailed |
@@ -470,6 +470,8 @@ When a results link or email address is set, names are required before **Send**,
 
 If you edit the script later, use **Deploy → Manage deployments → Edit → Version: New version**, so the URL stays the same. Every submission carries a `sessionId`, so if a player sends its results twice you can spot and delete the duplicate.
 
+For safety, the game sends results only to a Google Apps Script Web app; it ignores any other address, so a question file passed around by someone else can't send your students' names and answers to their own server. The start page says when a file sends results (and which course it names), and a file opened from a link shows which site it came from. Share your files and links only through your course page.
+
 *Who has access: Anyone* lets anyone with the link send data to your Sheet, but only you can read it, and the collector accepts only game submissions. If your institution doesn't allow Google services for student data, use the email or download option instead, and ask students to type student numbers or initials rather than full names if your rules require it.
 
 ### What the results contain
@@ -499,7 +501,7 @@ Each row has an `eventType` (game events) or a `phase` (surveys):
 
 **Grading.** I recommend grading participation (a complete results file, or a player appearing in your Sheet) or the growth from pre- to post-game survey, rather than the final rank: dice decide part of every game, and low stakes are what make students willing to take risks.
 
-The game saves the session in the browser as it goes, so an accidental refresh offers **Resume your game?** on the start page. Students should still send or download their results before closing the tab: the saved copy stays on that computer and expires after 12 hours.
+The game saves the session in the browser as it goes, so an accidental refresh offers **Resume your game?** on the start page. Students should still send or download their results before closing the tab: the saved copy stays on that computer until then, and expires after 12 hours. Sending or downloading the results deletes it, so the next student on a shared computer doesn't see the previous game.
 
 ## Designing a session based on ‘Learn Around the Board’
 
@@ -566,7 +568,7 @@ While this is only an example, you can certainly explore other lesson-design str
 
 ## Privacy and student data
 
-The game runs entirely in the students’ browsers. There is no account and no game server. In an online game, devices find each other through the free PeerJS connection service, which sees the devices' internet addresses and the room code but not the game; the game itself then goes directly from device to device, encrypted. Question files, answers and surveys stay on the students’ computers; results leave them only when students click **Send results to instructor** (they go straight to your own Google Sheet) or submit the results file themselves. The autosaved copy of a session also stays in the browser, and expires after 12 hours. Usage analytics (Google Analytics, with cookies: visits, device type, country) are loaded only if a visitor clicks **Allow analytics** on the start page. If your institution has rules about student data, ask students to choose **No thanks**; the game works the same either way. See the [privacy notice](https://hghezzi.github.io/Learn-Around-the-Board/privacy.html).
+The game runs entirely in the students’ browsers. There is no account and no game server. In an online game, devices find each other through the free PeerJS connection service, which sees the devices' internet addresses and the room code but not the game; the game itself then goes directly from device to device, encrypted. Question files, answers and surveys stay on the students’ computers; results leave them only when students click **Send results to instructor** (they go straight to your own Google Sheet) or submit the results file themselves. The autosaved copy of a session also stays in the browser until results are sent or downloaded, and expires after 12 hours. Usage analytics (Google Analytics, with cookies: visits, device type, country) are loaded only if a visitor clicks **Allow analytics** on the start page. If your institution has rules about student data, ask students to choose **No thanks**; the game works the same either way. See the [privacy notice](https://hghezzi.github.io/Learn-Around-the-Board/privacy.html).
 
 ## License and reuse
 
@@ -591,6 +593,13 @@ Building a great TSV cartridge takes intentional design, and mastering the role 
 Welcome to the board, and have a great session!
 
 ## What’s new
+
+**October 2026 (update 12): safer results and shared computers**
+
+- **Results go only to a results Sheet collector.** A `results_url` that isn't a Google Apps Script Web app (`https://script.google.com/macros/s/…/exec`) is now ignored by the game and shown as a red item by the file check. Before, any web address was used, so a question file shared by someone else could send students' names and answers to their own server. The collector links from the setup steps keep working unchanged.
+- **Students see where their results go.** The start page names the course a file sends results for, and says which site a file opened from a link came from. The end screen names the course next to **Send results to instructor**.
+- **Shared computers:** sending or downloading the results deletes the saved copy of the game, so the next student can't resume or see it.
+- **Online play:** room codes and device tokens now use the browser's cryptographic random generator.
 
 **October 2026 (update 11): a new name, Learn Around the Board (LAB)**
 

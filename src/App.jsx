@@ -101,7 +101,7 @@ function ValidationReport({ validation, imageMap, imageBase = "" }) {
   );
 }
 
-function SummaryView({ playerCount, config, topic, module, preRows, postRows, gameRows, sessionId: savedSessionId, onReturn, remoteMembers = {} }) {
+function SummaryView({ playerCount, config, topic, module, preRows, postRows, gameRows, sessionId: savedSessionId, onReturn, onDelivered, remoteMembers = {} }) {
   // Names typed here; online, a player's device can send its names (used while the field here is untouched).
   const [typed, setMembers] = useState(() => Array(playerCount).fill(null));
   const members = typed.map((m, i) => m ?? remoteMembers[i] ?? "");
@@ -112,19 +112,18 @@ function SummaryView({ playerCount, config, topic, module, preRows, postRows, ga
   const namesMissing = config.askNames && members.some((m) => !m.trim());
   const filename = resultsFilename(topic, module);
   const allRows = () => [...teamInfoRows(summary, sessionId), ...preRows, ...gameRows, ...postRows];
-  const download = () => downloadText(filename, toCsv(allRows()));
+  const download = () => { downloadText(filename, toCsv(allRows())); onDelivered?.(); };
   const send = async () => {
     setSendState({ status: "sending", message: "" });
     const result = await sendResults(config.resultsUrl, buildPayload({ sessionId, config, topic, module, summary, rows: allRows() }));
     setSendState(result.status === "sent" ? { status: "sent", message: "" } : { status: "error", message: result.message });
+    if (result.status === "sent") onDelivered?.();
   };
   // A real mailto: link (most reliable way to open the email app); clicking it also downloads the file to attach.
   const mailtoHref = config.instructorEmail
     ? buildMailto({ to: config.instructorEmail, course: config.course, topic, module, summary, filename })
     : "";
   const hasDelivery = Boolean(config.resultsUrl || config.instructorEmail);
-  let sheetHost = "";
-  try { sheetHost = config.resultsUrl ? new URL(config.resultsUrl).hostname : ""; } catch { /* filtered by readConfig */ }
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary", py: 6 }}>
@@ -172,7 +171,7 @@ function SummaryView({ playerCount, config, topic, module, preRows, postRows, ga
                 <Button variant="contained" size="large" disabled={namesMissing || ["sending", "sent"].includes(sendState.status)} onClick={send}>
                   {sendState.status === "sending" ? "Sending…" : sendState.status === "sent" ? "Sent ✓" : "📤 Send results to instructor"}
                 </Button>
-                <Typography variant="caption" color="text.secondary">Goes straight to your instructor's results sheet ({sheetHost}).</Typography>
+                <Typography variant="caption" color="text.secondary">Goes to the results sheet named in this question file{config.course ? ` (${config.course})` : ""}.</Typography>
                 {sendState.status === "sent" && <Alert severity="success">Sent! Your instructor has your results. You can also download a copy below.</Alert>}
                 {sendState.status === "error" && <Alert severity="error">{sendState.message}</Alert>}
               </>
@@ -277,6 +276,10 @@ const NO_SURVEYS = { pre: {}, post: {} };
 
 function HostApp({ onJoin }) {
   const [phase, setPhase] = useState("SETUP");
+  // Once results are sent or downloaded, the saved copy is deleted (shared computers) and not saved again.
+  const [resultsDelivered, setResultsDelivered] = useState(false);
+  // Where a question file loaded from a link came from (shown on the start page).
+  const [deckHost, setDeckHost] = useState("");
   const [gameMode, setGameMode] = useState(null);
   const [playerCount, setPlayerCount] = useState(2);
   const [sessionMinutes, setSessionMinutes] = useState(0);
@@ -335,7 +338,7 @@ function HostApp({ onJoin }) {
 
   // Save the session in this browser so an accidental refresh doesn't lose it.
   useEffect(() => {
-    if (!RESUMABLE_PHASES.includes(phase)) return;
+    if (!RESUMABLE_PHASES.includes(phase) || resultsDelivered) return;
     saveSnapshot({
       phase, sessionId, allTsvRows, imagesBase, gameMode, selectedModule, playerCount, sessionMinutes, startPlayer,
       botLevel: bot?.level || null,
@@ -345,7 +348,7 @@ function HostApp({ onJoin }) {
       online: online ? { code: online.code, claims, surveyDone } : null,
     });
   }, [phase, sessionId, allTsvRows, imagesBase, gameMode, selectedModule, playerCount, sessionMinutes, startPlayer, bot,
-      playerQuestionSets, confQ, preRows, postRows, gameRows, gameSnapshot, localImageMap, online, claims, surveyDone]);
+      playerQuestionSets, confQ, preRows, postRows, gameRows, gameSnapshot, localImageMap, online, claims, surveyDone, resultsDelivered]);
 
   useEffect(() => {
     const handlePopState = () => window.history.pushState(null, document.title, window.location.href);
@@ -510,7 +513,9 @@ function HostApp({ onJoin }) {
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(String(res.status));
-      acceptQuestionText(await res.text());
+      const text = await res.text();
+      setDeckHost(DECK_SHORTCUTS[String(input).trim().toLowerCase()] ? "" : new URL(url, window.location.href).hostname);
+      acceptQuestionText(text);
     } catch {
       setLoadingError(DECK_SHORTCUTS[String(input).trim().toLowerCase()]
         ? "Couldn't load the example questions. Check your internet connection and try again."
@@ -523,7 +528,7 @@ function HostApp({ onJoin }) {
   // Back to the start page with no file (also drops ?deck= from the address bar).
   const resetFile = () => {
     forgetSavedGame();
-    setAllTsvRows([]); setImagesBase("");
+    setAllTsvRows([]); setImagesBase(""); setDeckHost("");
     window.history.replaceState(null, "", window.location.pathname);
   };
   const resumeSaved = () => {
@@ -561,6 +566,7 @@ function HostApp({ onJoin }) {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) { setLoadingError(TOO_BIG); e.target.value = ""; return; }
+    setDeckHost("");
     const reader = new FileReader();
     reader.onload = (evt) => acceptQuestionText(String(evt.target.result || ""));
     reader.readAsText(file);
@@ -594,6 +600,7 @@ function HostApp({ onJoin }) {
   // match the final team count.
   const startGame = () => {
     forgetSavedGame(); // a new game replaces any saved one
+    setResultsDelivered(false);
     setSessionId(makeSessionId());
     setPlayerQuestionSets(buildSurveySets(allTsvRows, { topic: gameMode, module: selectedModule, playerCount }));
     setConfQ(buildConfidenceQuestions(allTsvRows, { topic: gameMode, module: selectedModule }));
@@ -667,10 +674,13 @@ function HostApp({ onJoin }) {
           ) : (
             <Card sx={{ p: { xs: 3, md: 4 }, textAlign: "left" }}>
               <Alert severity="success" sx={{ mb: 2 }}>
-                <strong>Loaded {allTsvRows.length} questions.</strong> Check the notes below, then continue.
+                <strong>Loaded {allTsvRows.length} questions{deckHost ? ` from ${deckHost}` : ""}.</strong> Check the notes below, then continue.
               </Alert>
               {(config.resultsUrl || config.instructorEmail) && (
-                <Alert severity="info" sx={{ mb: 2 }}>Results will be sent to your instructor at the end of the game.</Alert>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  This question file sends your results to {config.course ? `the instructor of ${config.course}` : "an instructor"} at the end of the game.
+                  {deckHost && ` It came from ${deckHost}: only play files your instructor gave you.`}
+                </Alert>
               )}
               <ValidationReport validation={validation} imageMap={localImageMap} imageBase={imagesBase} />
               <Button variant="outlined" component="label" fullWidth size="large" color="secondary" sx={{ mb: 1 }}>
@@ -862,5 +872,5 @@ function HostApp({ onJoin }) {
   if (phase === "PRE_SURVEY") return <SurveyView key="pre" phase="pre" playerCount={playerCount} playerQuestionSets={playerQuestionSets} confidenceQuestions={confQ} resolveImage={resolveImageSource} onComplete={d => { setPreRows(d.tidyRows); setStartPlayer(bestPreSurveyPlayer(d.tidyRows, playerCount)); setPhase("GAME"); }} />;
   if (phase === "GAME") return <Suspense fallback={<Box role="status" sx={{ p: 6, textAlign: "center" }}><Typography>Setting up the board…</Typography></Box>}><GameScreen boardData={boardData} online={hostOnline} bot={bot} bigTopic={gameMode} module={selectedModule} playerCount={playerCount} startingPlayerIndex={startPlayer} sessionMinutes={sessionMinutes} tsvRows={allTsvRows} imageMap={localImageMap} imageBase={imagesBase} resume={resumeGame} onSnapshot={setGameSnapshot} onEndGame={d => { setGameRows(d); setPhase("POST_SURVEY"); }} onExit={() => { forgetSavedGame(); closeRoom(); setPhase("SETUP"); setGameMode(null); }} /></Suspense>;
   if (phase === "POST_SURVEY") return <SurveyView key="post" phase="post" playerCount={playerCount} playerQuestionSets={playerQuestionSets} confidenceQuestions={confQ} resolveImage={resolveImageSource} onComplete={d => { setPostRows(d.tidyRows); setPhase("SUMMARY"); }} />;
-  return <SummaryView playerCount={playerCount} config={config} topic={gameMode} module={selectedModule} preRows={preRows} postRows={postRows} gameRows={gameRows} sessionId={sessionId} remoteMembers={remoteMembers} onReturn={() => { closeRoom(); setPhase("SETUP"); setGameMode(null); resetFile(); }} />;
+  return <SummaryView playerCount={playerCount} config={config} topic={gameMode} module={selectedModule} preRows={preRows} postRows={postRows} gameRows={gameRows} sessionId={sessionId} remoteMembers={remoteMembers} onDelivered={() => { setResultsDelivered(true); clearSnapshot(); }} onReturn={() => { closeRoom(); setPhase("SETUP"); setGameMode(null); resetFile(); }} />;
 }

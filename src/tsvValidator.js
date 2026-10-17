@@ -15,7 +15,7 @@
 import { getAllTopics, getModulesForTopic } from "./tsvParser.js";
 import { matchesTopicAndModule } from "./tsvBoardBuilder.js";
 import { FORMATS, parseFormat, parseIndexList, parseNumber, parseTolerance, hasExplicitMishapAmount, normalizeText } from "./questionFormats.js";
-import { CONFIG_KEYS, EMAIL_PATTERN, readConfig } from "./config.js";
+import { CONFIG_KEYS, COLLECTOR_URL, EMAIL_PATTERN, readConfig } from "./config.js";
 import { checkItemQuality, formatCueSummary, formatMultiSummary } from "./itemQuality.js";
 
 export const KNOWN_TYPES = ["property", "milestone", "core", "mishap", "survey", "confidence", "config"];
@@ -35,7 +35,7 @@ const rowLabel = (row, i) => (row.id ? `"${row.id}"` : `row ${i + 2}`);
 
 // Links instructors often paste instead of the collector's Web app URL; they can never work.
 const NOT_A_COLLECTOR = /^https:\/\/(?:docs\.google\.com\/(?:forms|spreadsheets)\/|forms\.gle\/|script\.google\.com\/.*\/dev(?:[?#/]|$))/i;
-const COLLECTOR = /^https:\/\/script\.google\.com\/(?:a\/macros\/[^/]+|macros)\/s\/[^/]+\/exec(?:[?#]|$)/i;
+const COLLECTOR = COLLECTOR_URL;
 
 // Instructor settings (type = config): the setting name goes in `id`, its value in `question`.
 function checkConfigRow(row, label, errors, warnings) {
@@ -52,7 +52,7 @@ function checkConfigRow(row, label, errors, warnings) {
   if (key === "results_url") {
     if (!/^https:\/\//i.test(value)) errors.push('Config "results_url" must be an https:// link (the Web app URL from Google Apps Script).');
     else if (NOT_A_COLLECTOR.test(value)) errors.push('Config "results_url" is a Google Form, Google Sheet or test (/dev) link, not the collector\'s Web app URL (https://script.google.com/macros/s/…/exec), so "Send results to instructor" would fail. Follow the collector setup and copy the Web app URL that ends in /exec.');
-    else if (!COLLECTOR.test(value)) warnings.push('Config "results_url" doesn\'t look like a Google Apps Script Web app link (https://script.google.com/macros/s/…/exec). It will still be used.');
+    else if (!COLLECTOR.test(value)) errors.push('Config "results_url" isn\'t a Google Apps Script Web app link (https://script.google.com/macros/s/…/exec). The game sends results only to the LAB collector and ignores any other address, so "Send results to instructor" won\'t appear.');
   }
   if (key === "instructor_email" && !EMAIL_PATTERN.test(value)) errors.push('Config "instructor_email" is not a valid email address.');
   if (key === "ask_names" && !["yes", "no", "y", "n", "true", "false", "1", "0"].includes(value.toLowerCase())) warnings.push('Config "ask_names" should be yes or no.');
@@ -66,7 +66,7 @@ function checkConfigRow(row, label, errors, warnings) {
 export function describeDelivery(rows) {
   const cfg = readConfig(rows);
   const to = [];
-  if (cfg.resultsUrl) to.push(COLLECTOR.test(cfg.resultsUrl) ? `the results collector at ${cfg.resultsUrl}` : `the web address ${cfg.resultsUrl} (not a recognised Apps Script collector)`);
+  if (cfg.resultsUrl) to.push(`the results collector at ${cfg.resultsUrl}`);
   if (cfg.instructorEmail) to.push(`an email to ${cfg.instructorEmail} (students attach the file)`);
   const where = to.length ? to.join(" and ") : "nowhere; students only download the results file (CSV)";
   // The end screen keeps Send, Email and Download disabled while required names are missing.

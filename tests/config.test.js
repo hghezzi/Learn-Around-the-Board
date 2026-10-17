@@ -22,6 +22,14 @@ describe("readConfig", () => {
     expect(readConfig([cfg("ask_names", "Yes")]).askNames).toBe(true);
   });
 
+  it("uses only Apps Script collector links, so a question file can't send results elsewhere", () => {
+    for (const url of ["https://example.com/collect", "https://evil.example/macros/s/X/exec", "https://script.google.com.evil.example/macros/s/X/exec",
+      "https://script.google.com/macros/s/X/dev", "https://docs.google.com/spreadsheets/d/1abc/edit"]) {
+      expect(readConfig([cfg("results_url", url)]).resultsUrl).toBe("");
+    }
+    expect(readConfig([cfg("results_url", "https://script.google.com/a/macros/uni.edu/s/AKfy/exec")]).resultsUrl).toBe("https://script.google.com/a/macros/uni.edu/s/AKfy/exec");
+  });
+
   it("ignores invalid links and addresses", () => {
     const config = readConfig([cfg("results_url", "http://example.com/collect"), cfg("instructor_email", "not-an-email")]);
     expect(config.resultsUrl).toBe("");
